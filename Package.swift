@@ -9,7 +9,7 @@ let package = Package(
     products: [
         .library(
             name: "SlangCompiler",
-            targets: ["SlangCompilerWrapper"]
+            targets: ["SlangCompiler"]
         ),
     ],
     targets: [
@@ -23,7 +23,7 @@ let package = Package(
 
         // Wrapper target (Objective-C++ bridge)
         .target(
-            name: "SlangCompilerWrapper",
+            name: "SlangCompiler",
             dependencies: ["SlangCompilerBinary"],
             path: "Sources/SlangCompiler",
             publicHeadersPath: ".",

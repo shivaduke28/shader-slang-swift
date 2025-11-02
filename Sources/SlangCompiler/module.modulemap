@@ -1,0 +1,6 @@
+module SlangCompiler {
+    umbrella header "SlangCompiler.h"
+    export *
+
+    link "c++"
+}
