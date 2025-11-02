@@ -1,0 +1,22 @@
+# Build artifacts
+build/
+xcframework/
+slang/build-*/
+slang/generators/
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
