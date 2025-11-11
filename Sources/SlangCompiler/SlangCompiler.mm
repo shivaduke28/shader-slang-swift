@@ -1,10 +1,3 @@
-//
-//  SlangCompiler.mm
-//  SlangTest
-//
-//  Objective-C++ bridge implementation for Slang Shader Language Compiler
-//
-
 #import "SlangCompiler.h"
 #include "slang.h"
 

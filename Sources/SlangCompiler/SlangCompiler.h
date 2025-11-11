@@ -1,10 +1,3 @@
-//
-//  SlangCompiler.h
-//  SlangTest
-//
-//  Objective-C bridge for Slang Shader Language Compiler
-//
-
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
