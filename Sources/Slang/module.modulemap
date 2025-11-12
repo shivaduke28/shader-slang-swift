@@ -1,0 +1,6 @@
+module Slang {
+    umbrella "include"
+    export *
+
+    link "c++"
+}
