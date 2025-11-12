@@ -20,21 +20,24 @@ NINJA := ninja
 # Archive name
 ARCHIVE_NAME := SlangCompiler.xcframework.zip
 
-.PHONY: help all generators device simulator build xcframework archive clean verify
+.PHONY: help all generators device simulator simulator-arm64 simulator-x86_64 simulator-universal build xcframework archive clean verify
 
 help:
 	@echo "$(GREEN)Slang iOS Build System$(NC)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  $(YELLOW)generators$(NC)   - Build code generators (host)"
-	@echo "  $(YELLOW)device$(NC)       - Build for iOS Device (arm64)"
-	@echo "  $(YELLOW)simulator$(NC)    - Build for iOS Simulator (arm64)"
-	@echo "  $(YELLOW)build$(NC)        - Build all platforms"
-	@echo "  $(YELLOW)xcframework$(NC)  - Create XCFrameworks"
-	@echo "  $(YELLOW)archive$(NC)      - Create distribution archive"
-	@echo "  $(YELLOW)all$(NC)          - Build everything and create archive"
-	@echo "  $(YELLOW)verify$(NC)       - Verify build artifacts"
-	@echo "  $(YELLOW)clean$(NC)        - Clean all build artifacts"
+	@echo "  $(YELLOW)generators$(NC)          - Build code generators (host)"
+	@echo "  $(YELLOW)device$(NC)              - Build for iOS Device (arm64)"
+	@echo "  $(YELLOW)simulator-arm64$(NC)     - Build for iOS Simulator (arm64)"
+	@echo "  $(YELLOW)simulator-x86_64$(NC)    - Build for iOS Simulator (x86_64)"
+	@echo "  $(YELLOW)simulator-universal$(NC) - Create universal simulator library"
+	@echo "  $(YELLOW)simulator$(NC)           - Build all simulator architectures"
+	@echo "  $(YELLOW)build$(NC)               - Build all platforms"
+	@echo "  $(YELLOW)xcframework$(NC)         - Create XCFrameworks"
+	@echo "  $(YELLOW)archive$(NC)             - Create distribution archive"
+	@echo "  $(YELLOW)all$(NC)                 - Build everything and create archive"
+	@echo "  $(YELLOW)verify$(NC)              - Verify build artifacts"
+	@echo "  $(YELLOW)clean$(NC)               - Clean all build artifacts"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make all          # Build everything"
@@ -103,9 +106,9 @@ device: generators
 		liblz4.a
 	@echo "$(GREEN)✓ iOS Device build complete$(NC)"
 
-# Build for iOS Simulator
-simulator: generators
-	@echo "$(YELLOW)[3/3] Building for iOS Simulator (arm64)...$(NC)"
+# Build for iOS Simulator (arm64)
+simulator-arm64: generators
+	@echo "$(YELLOW)[3/5] Building for iOS Simulator (arm64)...$(NC)"
 	@cd $(SLANG_DIR) && \
 	rm -rf build-ios-simulator-arm64 && \
 	mkdir -p build-ios-simulator-arm64 && \
@@ -142,7 +145,61 @@ simulator: generators
 		libcore.a \
 		libminiz.a \
 		liblz4.a
-	@echo "$(GREEN)✓ iOS Simulator build complete$(NC)"
+	@echo "$(GREEN)✓ iOS Simulator (arm64) build complete$(NC)"
+
+# Build for iOS Simulator (x86_64)
+simulator-x86_64: generators
+	@echo "$(YELLOW)[4/5] Building for iOS Simulator (x86_64)...$(NC)"
+	@cd $(SLANG_DIR) && \
+	rm -rf build-ios-simulator-x86_64 && \
+	mkdir -p build-ios-simulator-x86_64 && \
+	cd build-ios-simulator-x86_64 && \
+	cmake .. \
+		-G Ninja \
+		-DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) \
+		-DCMAKE_TOOLCHAIN_FILE=$(TOOLCHAINS_DIR)/ios-simulator-x86_64.toolchain.cmake \
+		-DSLANG_GENERATORS_PATH=$(SLANG_DIR)/generators/generators/Release/bin \
+		-DSLANG_LIB_TYPE=STATIC \
+		-DSLANG_ENABLE_TESTS=OFF \
+		-DSLANG_ENABLE_EXAMPLES=OFF \
+		-DSLANG_ENABLE_GFX=OFF \
+		-DSLANG_ENABLE_SLANGD=OFF \
+		-DSLANG_ENABLE_SLANGC=OFF \
+		-DSLANG_ENABLE_SLANGRT=OFF \
+		-DSLANG_ENABLE_SLANGI=OFF && \
+	$(NINJA) libslang-compiler.a libcompiler-core.a libcore.a && \
+	cd Release/lib && \
+	strip -S libslang-compiler.a && \
+	strip -S libcompiler-core.a && \
+	strip -S libcore.a && \
+	strip -S ../../external/miniz/libminiz.a && \
+	strip -S ../../external/lz4/build/cmake/liblz4.a
+	@mkdir -p $(BUILD_DIR)/ios-simulator-x86_64
+	@cp $(SLANG_DIR)/build-ios-simulator-x86_64/Release/lib/*.a $(BUILD_DIR)/ios-simulator-x86_64/
+	@cp $(SLANG_DIR)/build-ios-simulator-x86_64/external/miniz/libminiz.a $(BUILD_DIR)/ios-simulator-x86_64/
+	@cp $(SLANG_DIR)/build-ios-simulator-x86_64/external/lz4/build/cmake/liblz4.a $(BUILD_DIR)/ios-simulator-x86_64/
+	@echo "$(YELLOW)Merging libraries into single archive...$(NC)"
+	@cd $(BUILD_DIR)/ios-simulator-x86_64 && \
+	libtool -static -o libSlangCompiler.a \
+		libslang-compiler.a \
+		libcompiler-core.a \
+		libcore.a \
+		libminiz.a \
+		liblz4.a
+	@echo "$(GREEN)✓ iOS Simulator (x86_64) build complete$(NC)"
+
+# Create universal Simulator library (arm64 + x86_64)
+simulator-universal: simulator-arm64 simulator-x86_64
+	@echo "$(YELLOW)[5/5] Creating universal Simulator library...$(NC)"
+	@mkdir -p $(BUILD_DIR)/ios-simulator-universal
+	@lipo -create \
+		$(BUILD_DIR)/ios-simulator-arm64/libSlangCompiler.a \
+		$(BUILD_DIR)/ios-simulator-x86_64/libSlangCompiler.a \
+		-output $(BUILD_DIR)/ios-simulator-universal/libSlangCompiler.a
+	@echo "$(GREEN)✓ Universal Simulator library created$(NC)"
+
+# Build all simulator architectures
+simulator: simulator-universal
 
 # Build all platforms
 build: device simulator
@@ -154,16 +211,16 @@ build: device simulator
 # Create XCFramework
 xcframework:
 	@echo "$(YELLOW)Creating XCFramework...$(NC)"
-	@if [ ! -d "$(BUILD_DIR)/ios-device" ] || [ ! -d "$(BUILD_DIR)/ios-simulator-arm64" ]; then \
+	@if [ ! -d "$(BUILD_DIR)/ios-device" ] || [ ! -d "$(BUILD_DIR)/ios-simulator-universal" ]; then \
 		echo "$(RED)Error: Build artifacts not found. Run 'make build' first.$(NC)"; \
 		exit 1; \
 	fi
 	@rm -rf $(XCFRAMEWORK_DIR)
 	@mkdir -p $(XCFRAMEWORK_DIR)
-	@echo "  - SlangCompiler.xcframework (merged library)"
+	@echo "  - SlangCompiler.xcframework (universal library: device arm64 + simulator arm64/x86_64)"
 	@xcodebuild -create-xcframework \
 		-library $(BUILD_DIR)/ios-device/libSlangCompiler.a \
-		-library $(BUILD_DIR)/ios-simulator-arm64/libSlangCompiler.a \
+		-library $(BUILD_DIR)/ios-simulator-universal/libSlangCompiler.a \
 		-output $(XCFRAMEWORK_DIR)/SlangCompiler.xcframework > /dev/null
 	@echo "$(GREEN)✓ XCFramework created$(NC)"
 
@@ -202,11 +259,27 @@ verify:
 	fi
 	@echo ""
 	@if [ -f "$(BUILD_DIR)/ios-simulator-arm64/libSlangCompiler.a" ]; then \
-		echo "$(GREEN)✓ iOS Simulator merged library:$(NC)"; \
+		echo "$(GREEN)✓ iOS Simulator (arm64) library:$(NC)"; \
 		ls -lh $(BUILD_DIR)/ios-simulator-arm64/libSlangCompiler.a; \
 		lipo -info $(BUILD_DIR)/ios-simulator-arm64/libSlangCompiler.a; \
 	else \
-		echo "$(RED)✗ iOS Simulator library not found$(NC)"; \
+		echo "$(RED)✗ iOS Simulator (arm64) library not found$(NC)"; \
+	fi
+	@echo ""
+	@if [ -f "$(BUILD_DIR)/ios-simulator-x86_64/libSlangCompiler.a" ]; then \
+		echo "$(GREEN)✓ iOS Simulator (x86_64) library:$(NC)"; \
+		ls -lh $(BUILD_DIR)/ios-simulator-x86_64/libSlangCompiler.a; \
+		lipo -info $(BUILD_DIR)/ios-simulator-x86_64/libSlangCompiler.a; \
+	else \
+		echo "$(RED)✗ iOS Simulator (x86_64) library not found$(NC)"; \
+	fi
+	@echo ""
+	@if [ -f "$(BUILD_DIR)/ios-simulator-universal/libSlangCompiler.a" ]; then \
+		echo "$(GREEN)✓ iOS Simulator (universal) library:$(NC)"; \
+		ls -lh $(BUILD_DIR)/ios-simulator-universal/libSlangCompiler.a; \
+		lipo -info $(BUILD_DIR)/ios-simulator-universal/libSlangCompiler.a; \
+	else \
+		echo "$(RED)✗ iOS Simulator (universal) library not found$(NC)"; \
 	fi
 	@echo ""
 	@if [ -d "$(XCFRAMEWORK_DIR)/SlangCompiler.xcframework" ]; then \
@@ -221,6 +294,7 @@ clean:
 	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
 	@rm -rf $(SLANG_DIR)/build-ios-device
 	@rm -rf $(SLANG_DIR)/build-ios-simulator-arm64
+	@rm -rf $(SLANG_DIR)/build-ios-simulator-x86_64
 	@rm -rf $(SLANG_DIR)/generators
 	@rm -rf $(BUILD_DIR)
 	@rm -rf $(XCFRAMEWORK_DIR)
